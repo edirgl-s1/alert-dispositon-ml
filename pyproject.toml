@@ -1,7 +1,7 @@
 [project]
 name = "alert-disposition"
 version = "0.1.0"
-description = "ML for automated alert disposition (true positive / false positive / benign) in SentinelOne environments."
+description = "ML stage that scores whether an alert needs investigation, for automated alert disposition in SentinelOne environments."
 readme = "README.md"
 authors = [{ name = "Edir Garcia Lazo", email = "edir.garcialazo@sentinelone.com" }]
 requires-python = ">=3.12"
