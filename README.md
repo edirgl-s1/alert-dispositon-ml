@@ -32,5 +32,9 @@ make test
 2. New idea → new config file (or `-o` override) → `alertml train` → compare in MLflow → note it in `experiments/LOG.md`.
 3. Promote reusable notebook code into `src/`.
 
+## Further docs
+- `docs/feature_extraction.md`: feature pipeline design and field mappings
+- `docs/model_portability.md`: cross-platform notes for saved models
+
 ## Data handling
 Alert data is customer-sensitive: it never gets committed (gitignore + pre-commit guard). Use `.env` (see `.env.example`) for credentials.

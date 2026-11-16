@@ -4,3 +4,4 @@
 - Splits are chronological by default; do not shuffle across time without noting it in `experiments/LOG.md`.
 - Never commit anything under `data/` or `models/`. Alert data is sensitive.
 - Before finishing: `make lint test`.
+- Saved models (`models/*.joblib`) are pickles: only load our own, and keep library versions pinned via `uv.lock`. See `docs/model_portability.md`.
