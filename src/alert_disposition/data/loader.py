@@ -15,7 +15,9 @@ def load_raw(cfg: Config) -> pd.DataFrame:
     path = Path(cfg.data.raw_path)
     path = path if path.is_absolute() else ROOT / path
     df = pd.read_parquet(path)
-    missing = {cfg.data.label_col, cfg.data.time_col, cfg.data.id_col} - set(df.columns)
+    missing = {cfg.data.label_col, cfg.data.payload_col, cfg.data.time_col, cfg.data.id_col} - set(
+        df.columns
+    )
     if missing:
         raise ValueError(f"Raw data missing required columns: {sorted(missing)}")
     return df

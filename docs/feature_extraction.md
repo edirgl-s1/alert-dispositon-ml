@@ -6,6 +6,12 @@ sparse CSR matrix for a low-cost "needs investigation" classifier
 Task brief: `docs/feature_extraction_task.md`. Runtime deps:
 scikit-learn, SciPy, NumPy, joblib. LightGBM only for the example.
 
+Training uses it through `features/transformer.py` (`AlertFeatureTransformer`: a DataFrame
+column of raw payloads, JSON string or dict, to CSR), configured by `features:` in the YAML
+config (`FeaturesConfig` in `config.py`). `alertml train` scores `P(needs_investigation)`: the
+auto-dispose threshold is chosen on val (max missed-investigation rate) and applied unchanged
+to test, with per-group breakdowns logged as `group_metrics.json`.
+
 ## Layout
 
 | Module | Role |

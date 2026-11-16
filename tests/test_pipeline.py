@@ -62,5 +62,6 @@ def test_train_end_to_end(cfg, tmp_path, extra):
         ],
     )
     res = train(c, save_dir=tmp_path)
-    assert res["test_f1_macro"] > 0.4
-    assert np.isfinite(res["test_autoclose_rate"])
+    assert res["test_roc_auc"] > 0.6
+    assert np.isfinite(res["test_auto_dispose_rate"])
+    assert 0 <= res["test_missed_investigation_rate"] <= 1

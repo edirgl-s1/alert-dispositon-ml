@@ -1,46 +1,70 @@
+"""Metrics for the "needs investigation" target (y=1: should have been investigated).
+
+Headline operational metric: the share of alerts we could auto-dispose while keeping the
+missed-investigation rate (should-investigate alerts auto-disposed / all should-investigate
+alerts) within a limit. Select the threshold on validation data and apply it unchanged to test.
+"""
+
 from __future__ import annotations
 
 import numpy as np
-from sklearn.metrics import (
-    accuracy_score,
-    f1_score,
-    precision_recall_fscore_support,
-)
-
-POSITIVE = "true_positive"
+import pandas as pd
+from sklearn.metrics import average_precision_score, brier_score_loss, roc_auc_score
 
 
-def compute_metrics(
-    y_true, y_pred, y_proba, classes: list[str], target_recall: float
-) -> dict[str, float]:
-    y_true = np.asarray(y_true)
-    m: dict[str, float] = {
-        "accuracy": accuracy_score(y_true, y_pred),
-        "f1_macro": f1_score(y_true, y_pred, average="macro"),
+def select_threshold(y_true, p, max_missed_rate: float) -> float:
+    """Highest score cutoff such that auto-disposing ``p < cutoff`` misses at most
+    ``max_missed_rate`` of the y=1 alerts. Returns -inf when there are no positives to protect
+    against (nothing can be justified), so callers never auto-dispose on an empty positive set."""
+    y, p = np.asarray(y_true).astype(int), np.asarray(p, dtype=float)
+    pos = np.sort(p[y == 1])
+    if len(pos) == 0:
+        return float("-inf")
+    k = int(np.floor(max_missed_rate * len(pos)))
+    return float(pos[k]) if k < len(pos) else float("inf")
+
+
+def auto_dispose_stats(y_true, p, threshold: float) -> dict[str, float]:
+    """Auto-disposal rate and missed investigations at a fixed threshold."""
+    y, p = np.asarray(y_true).astype(int), np.asarray(p, dtype=float)
+    disposed = p < threshold
+    n_pos = int((y == 1).sum())
+    missed = int((disposed & (y == 1)).sum())
+    return {
+        "auto_dispose_threshold": threshold,
+        "auto_dispose_rate": float(disposed.mean()) if len(y) else float("nan"),
+        "missed_investigations": float(missed),
+        "missed_investigation_rate": missed / n_pos if n_pos else float("nan"),
     }
-    p, r, f, _ = precision_recall_fscore_support(y_true, y_pred, labels=classes, zero_division=0)
-    for c, pi, ri, fi in zip(classes, p, r, f, strict=True):
-        m[f"precision_{c}"], m[f"recall_{c}"], m[f"f1_{c}"] = pi, ri, fi
-    m.update(auto_close_at_recall(y_true, y_proba, classes, target_recall))
+
+
+def compute_metrics(y_true, p, threshold: float) -> dict[str, float]:
+    """Ranking, probability-quality and operational metrics for one split."""
+    y, p = np.asarray(y_true).astype(int), np.asarray(p, dtype=float)
+    m: dict[str, float] = {"prevalence": float(y.mean()), "brier": float(brier_score_loss(y, p))}
+    if len(np.unique(y)) == 2:
+        m["roc_auc"] = float(roc_auc_score(y, p))
+        m["pr_auc"] = float(average_precision_score(y, p))
+    m.update(auto_dispose_stats(y, p, threshold))
     return m
 
 
-def auto_close_at_recall(
-    y_true, y_proba, classes: list[str], target_recall: float
-) -> dict[str, float]:
-    """Operational metric: pick the highest P(true_positive) threshold that still catches
-    ``target_recall`` of real threats; everything below it is auto-closable.
-    Reports the fraction of alerts that could be auto-closed at that safety level."""
-    if POSITIVE not in classes:
-        return {}
-    p_tp = y_proba[:, classes.index(POSITIVE)]
-    is_tp = np.asarray(y_true) == POSITIVE
-    if is_tp.sum() == 0:
-        return {}
-    # threshold = quantile of TP scores s.t. target_recall of TPs score >= threshold
-    thr = float(np.quantile(p_tp[is_tp], 1 - target_recall))
-    return {
-        "autoclose_threshold": thr,
-        "autoclose_rate": float((p_tp < thr).mean()),
-        "autoclose_tp_missed": float((is_tp & (p_tp < thr)).sum()),
-    }
+def metrics_by_group(
+    df: pd.DataFrame, y_col: str, p, threshold: float, group_cols: list[str]
+) -> dict[str, dict[str, dict[str, float]]]:
+    """Per-group n / prevalence / auto-dispose stats at the global threshold (diagnostics only)."""
+    p = np.asarray(p, dtype=float)
+    out: dict[str, dict[str, dict[str, float]]] = {}
+    for col in group_cols:
+        if col not in df.columns:
+            continue
+        groups: dict[str, dict[str, float]] = {}
+        for value, idx in df.groupby(col, observed=True).indices.items():
+            y = df[y_col].to_numpy()[idx]
+            groups[str(value)] = {
+                "n": float(len(idx)),
+                "prevalence": float(y.mean()),
+                **auto_dispose_stats(y, p[idx], threshold),
+            }
+        out[col] = groups
+    return out

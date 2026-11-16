@@ -14,16 +14,17 @@ import yaml
 from alert_disposition.config import ROOT, Config
 from alert_disposition.data.loader import load_raw
 from alert_disposition.data.split import split_data
-from alert_disposition.evaluation.metrics import compute_metrics
+from alert_disposition.evaluation.metrics import (
+    compute_metrics,
+    metrics_by_group,
+    select_threshold,
+)
 from alert_disposition.models.factory import build_model
 
 
-def _evaluate(model, df: pd.DataFrame, cfg: Config) -> dict[str, float]:
-    X, y = df.drop(columns=[cfg.data.label_col]), df[cfg.data.label_col]
-    classes = list(model.classes_)
-    return compute_metrics(
-        y, model.predict(X), model.predict_proba(X), classes, cfg.evaluation.target_tp_recall
-    )
+def _score(model, df: pd.DataFrame, cfg: Config):
+    """P(needs_investigation) for each row."""
+    return model.predict_proba(df.drop(columns=[cfg.data.label_col]))[:, 1]
 
 
 def train(cfg: Config, save_dir: Path | None = None) -> dict[str, float]:
@@ -51,10 +52,17 @@ def train(cfg: Config, save_dir: Path | None = None) -> dict[str, float]:
         model = build_model(cfg)
         model.fit(Xtr, ytr)
 
+        # The auto-dispose threshold is chosen on val and applied unchanged to test.
+        ev = cfg.evaluation
+        p_val = _score(model, splits["val"], cfg)
+        threshold = select_threshold(splits["val"][label], p_val, ev.max_missed_investigation_rate)
         results: dict[str, float] = {}
+        group_metrics: dict = {}
         for name in ("val", "test"):
-            for k, v in _evaluate(model, splits[name], cfg).items():
+            p = p_val if name == "val" else _score(model, splits[name], cfg)
+            for k, v in compute_metrics(splits[name][label], p, threshold).items():
                 results[f"{name}_{k}"] = v
+            group_metrics[name] = metrics_by_group(splits[name], label, p, threshold, ev.group_cols)
         mlflow.log_metrics(results)
 
         out = save_dir or ROOT / "models"
@@ -66,4 +74,7 @@ def train(cfg: Config, save_dir: Path | None = None) -> dict[str, float]:
             mp = Path(td) / "metrics.json"
             mp.write_text(json.dumps(results, indent=2))
             mlflow.log_artifact(str(mp))
+            gp = Path(td) / "group_metrics.json"
+            gp.write_text(json.dumps(group_metrics, indent=2))
+            mlflow.log_artifact(str(gp))
     return results
