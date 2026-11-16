@@ -1,0 +1,26 @@
+__pycache__/
+*.py[cod]
+.venv/
+.env
+.ipynb_checkpoints/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+dist/
+
+# Data: never commit alert data (customer-sensitive)
+data/*/*
+!data/*/.gitkeep
+# Artifacts
+models/*
+!models/.gitkeep
+experiments/*.db
+mlruns/
+mlflow.db
+reports/figures/*
+!reports/figures/.gitkeep
+.DS_Store
+experiments/mlruns/*
+!experiments/mlruns/.gitkeep

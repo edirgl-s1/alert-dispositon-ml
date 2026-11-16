@@ -1,0 +1,8 @@
+# Usage: alertml train -c configs/default.yaml -c configs/model_logreg.yaml  (later files override)
+run_name: logreg
+model:
+  name: logreg
+  params:
+    C: 1.0
+    max_iter: 1000
+    class_weight: balanced

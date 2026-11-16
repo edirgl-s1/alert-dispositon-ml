@@ -1,0 +1,39 @@
+# Root experiment config. Override via: alertml train --config configs/default.yaml -o model.params.n_estimators=500
+experiment_name: alert-disposition
+run_name: baseline
+seed: 42
+
+data:
+  source: synthetic            # synthetic | parquet
+  raw_path: data/raw/alerts.parquet
+  processed_dir: data/processed
+  label_col: disposition       # true_positive | false_positive | benign
+  time_col: created_at
+  id_col: alert_id
+  n_synthetic: 5000
+  split:
+    strategy: time             # time | random  (time avoids leakage from repeated alert patterns)
+    test_frac: 0.2
+    val_frac: 0.1
+
+features:
+  categorical: [rule_name, severity, endpoint_os, detection_engine, mitre_tactic, account_id]
+  numeric: [process_count, network_conn_count, file_mod_count, risk_score, host_alert_count_24h]
+  text: []                     # e.g. [process_cmdline] for TF-IDF; empty = off
+  time_features: true
+
+model:
+  name: lightgbm               # lightgbm | logreg
+  params:
+    n_estimators: 300
+    learning_rate: 0.05
+    num_leaves: 31
+    class_weight: balanced
+
+evaluation:
+  primary_metric: f1_macro
+  # Cost of auto-closing a real threat is far above analyst time; track at fixed recall.
+  target_tp_recall: 0.99
+
+mlflow:
+  tracking_uri: sqlite:///experiments/mlflow.db
