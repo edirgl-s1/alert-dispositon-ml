@@ -11,9 +11,13 @@ import numpy as np
 import pandas as pd
 from sklearn.metrics import average_precision_score, brier_score_loss, roc_auc_score
 
+MISSING_GROUP = "(missing)"
+
 
 def select_threshold(y_true, p, max_missed_rate: float) -> float:
-    """Highest score cutoff such that auto-disposing ``p < cutoff`` misses at most
+    """TBD: point estimate on val, not a guarantee on new data (docs/open_issues.md #1).
+
+    Highest score cutoff such that auto-disposing ``p < cutoff`` misses at most
     ``max_missed_rate`` of the y=1 alerts. Returns -inf when there are no positives to protect
     against (nothing can be justified), so callers never auto-dispose on an empty positive set."""
     y, p = np.asarray(y_true).astype(int), np.asarray(p, dtype=float)
@@ -52,14 +56,19 @@ def compute_metrics(y_true, p, threshold: float) -> dict[str, float]:
 def metrics_by_group(
     df: pd.DataFrame, y_col: str, p, threshold: float, group_cols: list[str]
 ) -> dict[str, dict[str, dict[str, float]]]:
-    """Per-group n / prevalence / auto-dispose stats at the global threshold (diagnostics only)."""
+    """Per-group n / prevalence / auto-dispose stats at the global threshold (diagnostics only).
+
+    Rows whose group value is null are reported under ``MISSING_GROUP``.
+    """
     p = np.asarray(p, dtype=float)
     out: dict[str, dict[str, dict[str, float]]] = {}
     for col in group_cols:
         if col not in df.columns:
             continue
+        # Null group values are reported as their own group rather than silently dropped.
+        keys = df[col].astype(object).where(df[col].notna(), MISSING_GROUP).to_numpy()
         groups: dict[str, dict[str, float]] = {}
-        for value, idx in df.groupby(col, observed=True).indices.items():
+        for value, idx in pd.Series(keys).groupby(keys).indices.items():
             y = df[y_col].to_numpy()[idx]
             groups[str(value)] = {
                 "n": float(len(idx)),

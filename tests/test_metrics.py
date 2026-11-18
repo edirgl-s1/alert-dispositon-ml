@@ -2,6 +2,7 @@ import numpy as np
 import pandas as pd
 
 from alert_disposition.evaluation.metrics import (
+    MISSING_GROUP,
     auto_dispose_stats,
     metrics_by_group,
     select_threshold,
@@ -34,3 +35,11 @@ def test_group_breakdown_uses_global_threshold():
     out = metrics_by_group(df, "y", [0.9, 0.1, 0.8, 0.2], 0.5, ["source", "absent"])
     assert set(out) == {"source"}
     assert out["source"]["EDR"]["auto_dispose_rate"] == 0.5
+
+
+def test_null_group_values_are_reported_not_dropped():
+    df = pd.DataFrame({"y": [1, 0, 1], "alert_type": ["AWS", None, np.nan]})
+    out = metrics_by_group(df, "y", [0.9, 0.1, 0.8], 0.5, ["alert_type"])["alert_type"]
+    assert set(out) == {"AWS", MISSING_GROUP}
+    assert out[MISSING_GROUP]["n"] == 2.0
+    assert sum(g["n"] for g in out.values()) == len(df)

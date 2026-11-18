@@ -6,7 +6,6 @@ import json
 import tempfile
 from pathlib import Path
 
-import joblib
 import mlflow
 import pandas as pd
 import yaml
@@ -19,6 +18,7 @@ from alert_disposition.evaluation.metrics import (
     metrics_by_group,
     select_threshold,
 )
+from alert_disposition.models.artifact import save_model
 from alert_disposition.models.factory import build_model
 
 
@@ -65,11 +65,18 @@ def train(cfg: Config, save_dir: Path | None = None) -> dict[str, float]:
             group_metrics[name] = metrics_by_group(splits[name], label, p, threshold, ev.group_cols)
         mlflow.log_metrics(results)
 
-        out = save_dir or ROOT / "models"
-        out.mkdir(parents=True, exist_ok=True)
-        path = out / f"{cfg.run_name}.joblib"
-        joblib.dump(model, path)
-        mlflow.log_artifact(str(path))
+        model_path, schema_file = save_model(
+            model, cfg, save_dir or ROOT / "models", val_threshold=threshold
+        )
+        schema = json.loads(schema_file.read_text())
+        mlflow.log_params(
+            {
+                "n_features": schema["features"]["n_features"],
+                "features.names_sha256": schema["features"]["names_sha256"],
+            }
+        )
+        mlflow.log_artifact(str(model_path))
+        mlflow.log_artifact(str(schema_file))
         with tempfile.TemporaryDirectory() as td:
             mp = Path(td) / "metrics.json"
             mp.write_text(json.dumps(results, indent=2))

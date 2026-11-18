@@ -1,0 +1,4 @@
+# Overlay for the synthetic generator: alertml train -c configs/default.yaml -c configs/synthetic.yaml
+# (make train uses it). Do not use with real data.
+features:
+  ocsf_full_path_key: path     # the synthetic payloads put a full path in process.file.path

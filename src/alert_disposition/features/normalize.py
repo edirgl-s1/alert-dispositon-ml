@@ -27,10 +27,12 @@ _GUID = re.compile(
     r"\{?\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b\}?", re.IGNORECASE
 )
 _SID = re.compile(r"\bS-1-\d+(?:-\d+){1,}\b", re.IGNORECASE)
+# Known issue: also matches 4-part versions (120.0.0.1). See docs/feature_extraction.md.
 _IPV4 = re.compile(r"\b(?:25[0-5]|2[0-4]\d|1?\d?\d)(?:\.(?:25[0-5]|2[0-4]\d|1?\d?\d)){3}\b")
 _HASH = re.compile(r"\b(?:[0-9a-f]{32}|[0-9a-f]{40}|[0-9a-f]{64}|[0-9a-f]{128})\b", re.IGNORECASE)
 _LONG_HEX = re.compile(r"\b(?=[0-9a-f]*\d)[0-9a-f]{16,}\b", re.IGNORECASE)
-_BLOB = re.compile(r"[A-Za-z0-9+/_-]{40,}={0,2}")
+_MIN_BLOB = 40  # a run this long of base64-ish characters is treated as an opaque blob
+_BLOB = re.compile(rf"[A-Za-z0-9+/_-]{{{_MIN_BLOB},}}={{0,2}}")
 _UNC_HOST = re.compile(r"^(\\\\|//)([^\\/]+)")
 _FQDN = re.compile(r"\b(?:[a-z0-9][a-z0-9-]*\.){2,}[a-z]{2,6}\b", re.IGNORECASE)
 _WIN_USER = re.compile(r"(?i)\b([a-z]:[\\/]users[\\/])[^\\/\s\"']+")
@@ -92,10 +94,23 @@ def redact(text: str) -> str:
     text = _IPV4.sub(R_IP, text)
     text = _HASH.sub(R_HASH, text)
     text = _LONG_HEX.sub(R_HEX, text)
-    text = _BLOB.sub(R_BLOB, text)
+    text = _BLOB.sub(_blob_repl, text)
     text = _WIN_USER.sub(lambda m: m.group(1) + R_USER, text)
     text = _UNIX_USER.sub(lambda m: m.group(1) + R_USER, text)
     return _FQDN.sub(_fqdn_repl, text)
+
+
+def _blob_repl(match: re.Match[str]) -> str:
+    """Redact a blob, but keep rooted paths (``/usr/lib/...``, ``C:/...``).
+
+    ``/`` is a base64 character, so a long dotless path matches ``_BLOB`` as a
+    whole. When the run starts with ``/``, only segments that are themselves
+    blob-length are redacted.
+    """
+    run = match.group(0)
+    if not run.startswith("/"):
+        return R_BLOB
+    return "/".join(R_BLOB if len(seg) >= _MIN_BLOB else seg for seg in run.split("/"))
 
 
 def _fqdn_repl(match: re.Match[str]) -> str:
@@ -290,7 +305,13 @@ _POSIX_ABS = re.compile(r"^/[^/\s]+/[^/\s]")
 
 
 def _is_opaque(arg: str) -> bool:
-    return len(arg) >= 40 and re.fullmatch(r"[A-Za-z0-9+/=_-]+", arg) is not None
+    """Long base64-ish argument. An absolute path is opaque only if one of its
+    segments is blob-length (otherwise it is tokenized as a path)."""
+    if len(arg) < _MIN_BLOB or re.fullmatch(r"[A-Za-z0-9+/=_-]+", arg) is None:
+        return False
+    if _POSIX_ABS.match(arg) is None:
+        return True
+    return any(len(seg) >= _MIN_BLOB for seg in arg.split("/"))
 
 
 def command_info(cmd: str | None, limits: Limits) -> CommandInfo:
