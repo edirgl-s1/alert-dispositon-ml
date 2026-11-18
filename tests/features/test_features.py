@@ -102,6 +102,41 @@ def test_posix_and_env_var_paths() -> None:
     assert "dir:temp" in env.tokens and "loc:user_profile" in env.tokens
 
 
+LONG_POSIX = "/usr/lib/systemd/system-generators/systemd-gpt-auto-generator"
+BLOB = "QUJDREVGR0hJSktMTU5PUFFSU1RVVldYWVphYmNkZWZnaGlqa2xtbm9w"
+
+
+@pytest.mark.parametrize(
+    ("path", "expected"),
+    [
+        (LONG_POSIX, {"dir:usr", "dir:lib", "dir:systemd", "dir:system-generators"}),
+        (
+            "C:/Users/Alice/AppData/Local/Microsoft/WindowsApps/winget.exe",
+            {"loc:user_profile", "dir:windowsapps", "basename:winget.exe", "ext:exe"},
+        ),
+        (
+            "/home/dave/projects/service-runtime/bin/worker-daemon",
+            {"loc:user_profile", "dir:service-runtime", "basename:worker-daemon"},
+        ),
+    ],
+)
+def test_long_slash_paths_are_not_treated_as_blobs(path: str, expected: set[str]) -> None:
+    info = path_info(path, is_full_path=True, limits=LIMITS)
+    assert expected <= set(info.tokens)
+    assert info.has_full_path
+    assert not any("alice" in t or "dave" in t for t in info.tokens)
+
+
+def test_long_paths_survive_in_commands_and_text_but_blobs_do_not() -> None:
+    tokens = set(command_info(f"/usr/bin/env {LONG_POSIX} --run", LIMITS).tokens)
+    assert {"cmd_dir:system-generators", "flag:run"} <= tokens
+    assert "has:opaque_arg" not in tokens
+    assert "has:opaque_arg" in command_info(f"tool {BLOB}", LIMITS).tokens
+    assert "has:opaque_arg" in command_info(f"tool /x/{BLOB}", LIMITS).tokens
+    assert redact(f"ran {LONG_POSIX} ok") == f"ran {LONG_POSIX} ok"
+    assert BLOB not in redact(f"payload {BLOB} and /tmp/{BLOB}")
+
+
 def test_bare_file_name_has_no_directory_or_full_path() -> None:
     info = path_info("update.exe", is_full_path=False, limits=LIMITS)
     assert set(info.tokens) == {"basename:update.exe", "ext:exe"}

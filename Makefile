@@ -12,7 +12,7 @@ test:
 data:
 	uv run alertml prepare-data
 train:      ## make train ARGS="-o model.name=logreg"
-	uv run alertml train $(ARGS)
+	uv run alertml train -c configs/default.yaml -c configs/synthetic.yaml $(ARGS)
 mlflow:     ## experiment tracking UI at :5000
 	uv run mlflow ui --backend-store-uri sqlite:///experiments/mlflow.db
 notebook:

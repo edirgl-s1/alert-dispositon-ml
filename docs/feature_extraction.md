@@ -100,5 +100,13 @@ Redaction covers URLs, emails, GUIDs, SIDs, IPv4, 32/40/64/128-char hashes, long
 - `time` unit/zone unverified; no time features. `as_of` is recorded on `CanonicalAlert` but not enforced.
 - Command tokenizer picks Windows vs POSIX quoting heuristically (backslash or `.exe`-style head). PowerShell abbreviations (`-enc`) are kept as written; no alias table.
 - FQDN redaction is heuristic (two or more dots, short alphabetic TLD).
+- **Known issue (deferred):** IPv4 redaction also matches four-part version strings whose
+  parts are all 0-255 (`Chrome 120.0.0.1`, S1 agent versions like `23.4.2.14`); they become
+  `redacted_ip`. In text this only adds a false "IP present" token. In allowlisted metadata it
+  is worse: `_token_value` drops any value containing a redaction, so a version field would
+  vanish. Options when real data arrives: measure how often matches sit next to version cues;
+  context rule in text (`v`/`version`/`build`/`Product/` -> `redacted_version`); per-field
+  types for allowlisted metadata (version field -> major version, no IP redaction); optionally
+  coarse `redacted_ip_private`/`_public`/`_loopback` tokens. Keep IP redaction the default.
 - `min_df=10`, TF-IDF `(1,2)`/10000 are untested starting points. Defaults make small corpora raise `EmptyVocabularyError`; set `on_empty_vocabulary=SKIP` to drop the channel.
 - Training data must be the residual population after deterministic rules, with independently adjudicated investigation-necessity labels. Out of scope: orchestrator, thresholds, calibration, embeddings, prevalence features.

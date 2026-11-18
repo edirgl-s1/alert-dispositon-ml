@@ -23,6 +23,8 @@ from alert_disposition.features.pipeline import FeaturePipeline
 def parse_payload(raw: object, row: int) -> object:
     """JSON strings (the FE ``rawData`` form) become dicts; other payloads pass through.
 
+    TBD: one bad row currently aborts the whole batch (docs/open_issues.md #2).
+
     Raises:
         ValueError: On malformed JSON. The message names the row, never the content.
     """

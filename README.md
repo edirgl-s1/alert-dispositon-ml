@@ -11,7 +11,7 @@ macOS: LightGBM needs OpenMP — `brew install libomp` (logreg works without it)
 
 ```bash
 make setup        # uv sync + pre-commit hooks
-make train        # trains on synthetic data by default -> logs to MLflow
+make train        # synthetic data (default.yaml + synthetic.yaml overlay) -> logs to MLflow
 make mlflow       # browse runs at http://localhost:5000
 make test
 ```
@@ -19,11 +19,11 @@ make test
 ## Layout
 | Path | Purpose |
 |---|---|
-| `configs/` | YAML experiment configs; layered (`-c default.yaml -c model_logreg.yaml`) with `-o a.b=c` overrides |
+| `configs/` | YAML experiment configs; layered (`-c default.yaml -c model_logreg.yaml`) with `-o a.b=c` overrides. `synthetic.yaml` is for the synthetic generator only |
 | `data/{raw,interim,processed,external}` | Gitignored. Real alert exports go in `raw/` as parquet |
 | `src/alert_disposition/data` | loading, splitting (chronological by default), synthetic generator |
 | `src/alert_disposition/features` | alert adapters (OCSF / raw JSON) -> canonical alert -> sparse structured/path/command/text features (fit on train only, saved with the model) |
-| `src/alert_disposition/models` | model factory — register new models here |
+| `src/alert_disposition/models` | model factory (register new models here) and artifact save/load with a JSON feature schema |
 | `src/alert_disposition/training` | train loop + MLflow logging |
 | `src/alert_disposition/evaluation` | metrics, incl. auto-dispose rate at a capped missed-investigation rate |
 | `notebooks/` | exploration only |
@@ -39,6 +39,7 @@ make test
 ## Further docs
 - `docs/feature_extraction.md`: feature pipeline design and field mappings
 - `docs/model_portability.md`: cross-platform notes for saved models
+- `docs/open_issues.md`: known gaps deferred until real data (threshold guarantee, bad rows, ...)
 
 ## Data handling
 Alert data is customer-sensitive: it never gets committed (gitignore + pre-commit guard). Use `.env` (see `.env.example`) for credentials.

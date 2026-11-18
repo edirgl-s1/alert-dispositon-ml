@@ -21,7 +21,7 @@ data:
 features:
   experiment: E3               # E0 structured | E1 +path | E2 +command | E3 +text | E4 +attack/metadata
   include_confidence: false    # only once confidence_id is confirmed available pre-ML
-  ocsf_full_path_key: path     # synthetic data only; the real full-path field is unvalidated
+  ocsf_full_path_key: null     # no full path assumed until the real field is validated (synthetic.yaml sets it)
   # attack_fields / metadata_allowlist: allowlist-only, fill after inspecting real payloads
   path: {min_df: 10}
   command: {min_df: 10}
